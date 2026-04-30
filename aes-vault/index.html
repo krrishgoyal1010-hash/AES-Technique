@@ -1,0 +1,936 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>AES Vault — Secure File Encryption</title>
+  <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Outfit:wght@300;400;600;700;900&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #080c10;
+      --surface: #0d1117;
+      --card: #111820;
+      --border: #1e2d3d;
+      --accent: #00d4ff;
+      --accent2: #00ff9d;
+      --warn: #ff5f5f;
+      --text: #e0eaf5;
+      --muted: #5c7a96;
+      --glow: 0 0 24px rgba(0,212,255,0.25);
+      --glow2: 0 0 24px rgba(0,255,157,0.25);
+    }
+
+    html, body {
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Outfit', sans-serif;
+      overflow-x: hidden;
+    }
+
+    /* Animated grid background */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(0,212,255,0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0,212,255,0.03) 1px, transparent 1px);
+      background-size: 40px 40px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* Radial spotlight */
+    body::after {
+      content: '';
+      position: fixed;
+      top: -20%;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 80vw;
+      height: 60vh;
+      background: radial-gradient(ellipse, rgba(0,212,255,0.07) 0%, transparent 70%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .wrapper {
+      position: relative;
+      z-index: 1;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 48px 16px 80px;
+    }
+
+    /* Header */
+    header {
+      text-align: center;
+      margin-bottom: 48px;
+      animation: fadeDown 0.8s ease both;
+    }
+
+    .logo-row {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+      margin-bottom: 10px;
+    }
+
+    .lock-icon {
+      width: 48px;
+      height: 48px;
+      filter: drop-shadow(0 0 10px var(--accent));
+    }
+
+    h1 {
+      font-size: clamp(2rem, 5vw, 3.2rem);
+      font-weight: 900;
+      letter-spacing: -1px;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .tagline {
+      font-size: 0.95rem;
+      color: var(--muted);
+      letter-spacing: 0.08em;
+      font-family: 'Share Tech Mono', monospace;
+    }
+
+    /* Badges */
+    .badges {
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin-top: 16px;
+    }
+    .badge {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 0.7rem;
+      padding: 4px 12px;
+      border-radius: 100px;
+      border: 1px solid;
+      letter-spacing: 0.06em;
+    }
+    .badge-blue { border-color: var(--accent); color: var(--accent); background: rgba(0,212,255,0.07); }
+    .badge-green { border-color: var(--accent2); color: var(--accent2); background: rgba(0,255,157,0.07); }
+    .badge-muted { border-color: var(--border); color: var(--muted); }
+
+    /* Main card */
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 36px 32px;
+      width: 100%;
+      max-width: 580px;
+      animation: fadeUp 0.8s ease 0.1s both;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, var(--accent), var(--accent2), transparent);
+    }
+
+    /* Mode tabs */
+    .mode-tabs {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 4px;
+      margin-bottom: 28px;
+    }
+
+    .tab-btn {
+      padding: 11px;
+      border-radius: 9px;
+      border: none;
+      background: none;
+      font-family: 'Outfit', sans-serif;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.25s;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .tab-btn.active {
+      background: linear-gradient(135deg, rgba(0,212,255,0.15), rgba(0,255,157,0.1));
+      color: var(--text);
+      box-shadow: 0 0 0 1px rgba(0,212,255,0.3);
+    }
+
+    /* Section labels */
+    .field-label {
+      font-size: 0.75rem;
+      font-family: 'Share Tech Mono', monospace;
+      color: var(--muted);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+
+    /* File drop zone */
+    .drop-zone {
+      border: 2px dashed var(--border);
+      border-radius: 14px;
+      padding: 40px 20px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.25s;
+      margin-bottom: 20px;
+      position: relative;
+      background: var(--surface);
+    }
+
+    .drop-zone:hover, .drop-zone.drag-over {
+      border-color: var(--accent);
+      background: rgba(0,212,255,0.04);
+      box-shadow: var(--glow);
+    }
+
+    .drop-zone input[type="file"] {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+      width: 100%;
+      height: 100%;
+    }
+
+    .drop-icon {
+      font-size: 2.4rem;
+      margin-bottom: 10px;
+      display: block;
+    }
+
+    .drop-title {
+      font-weight: 600;
+      font-size: 1rem;
+      margin-bottom: 4px;
+    }
+
+    .drop-sub {
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+
+    .file-info {
+      display: none;
+      align-items: center;
+      gap: 12px;
+      background: rgba(0,212,255,0.06);
+      border: 1px solid rgba(0,212,255,0.2);
+      border-radius: 10px;
+      padding: 12px 16px;
+      margin-bottom: 20px;
+      animation: fadeUp 0.3s ease;
+    }
+
+    .file-info.show { display: flex; }
+
+    .file-info-icon { font-size: 1.5rem; }
+
+    .file-info-text { flex: 1; }
+    .file-info-name { font-weight: 600; font-size: 0.9rem; word-break: break-all; }
+    .file-info-size { font-size: 0.75rem; color: var(--muted); font-family: 'Share Tech Mono', monospace; }
+
+    .clear-btn {
+      background: none;
+      border: none;
+      color: var(--muted);
+      cursor: pointer;
+      font-size: 1.1rem;
+      padding: 4px;
+      transition: color 0.2s;
+    }
+    .clear-btn:hover { color: var(--warn); }
+
+    /* Password field */
+    .pass-wrap {
+      position: relative;
+      margin-bottom: 20px;
+    }
+
+    .pass-input {
+      width: 100%;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 13px 48px 13px 16px;
+      color: var(--text);
+      font-size: 0.95rem;
+      font-family: 'Share Tech Mono', monospace;
+      outline: none;
+      transition: all 0.25s;
+    }
+
+    .pass-input:focus {
+      border-color: var(--accent);
+      box-shadow: var(--glow);
+    }
+
+    .pass-toggle {
+      position: absolute;
+      right: 14px;
+      top: 50%;
+      transform: translateY(-50%);
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: var(--muted);
+      font-size: 1rem;
+      transition: color 0.2s;
+    }
+    .pass-toggle:hover { color: var(--accent); }
+
+    /* Strength meter */
+    .strength-wrap {
+      margin-top: -12px;
+      margin-bottom: 20px;
+    }
+
+    .strength-bar {
+      height: 3px;
+      border-radius: 2px;
+      background: var(--border);
+      overflow: hidden;
+      margin-bottom: 5px;
+    }
+
+    .strength-fill {
+      height: 100%;
+      border-radius: 2px;
+      transition: width 0.4s ease, background 0.4s ease;
+      width: 0%;
+    }
+
+    .strength-label {
+      font-size: 0.72rem;
+      font-family: 'Share Tech Mono', monospace;
+      color: var(--muted);
+    }
+
+    /* Options row */
+    .options-row {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 24px;
+    }
+
+    .option-chip {
+      flex: 1;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-size: 0.78rem;
+      color: var(--muted);
+    }
+
+    .option-chip.selected {
+      border-color: var(--accent);
+      color: var(--accent);
+      background: rgba(0,212,255,0.07);
+    }
+
+    .option-chip-label { font-family: 'Share Tech Mono', monospace; display: block; font-size: 0.65rem; margin-top: 2px; }
+
+    /* Action button */
+    .action-btn {
+      width: 100%;
+      padding: 16px;
+      border-radius: 12px;
+      border: none;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      color: #000;
+      font-family: 'Outfit', sans-serif;
+      font-size: 1rem;
+      font-weight: 700;
+      cursor: pointer;
+      letter-spacing: 0.03em;
+      transition: all 0.25s;
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+    }
+
+    .action-btn:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 32px rgba(0,212,255,0.35);
+    }
+
+    .action-btn:active:not(:disabled) { transform: translateY(0); }
+
+    .action-btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    /* Progress */
+    .progress-wrap {
+      margin-top: 20px;
+      display: none;
+    }
+    .progress-wrap.show { display: block; }
+
+    .progress-bar {
+      height: 4px;
+      background: var(--border);
+      border-radius: 4px;
+      overflow: hidden;
+      margin-bottom: 8px;
+    }
+
+    .progress-fill {
+      height: 100%;
+      border-radius: 4px;
+      background: linear-gradient(90deg, var(--accent), var(--accent2));
+      width: 0%;
+      transition: width 0.3s ease;
+      position: relative;
+    }
+
+    .progress-fill::after {
+      content: '';
+      position: absolute;
+      top: 0; right: 0;
+      width: 40px;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4));
+      animation: shimmer 1s infinite;
+    }
+
+    .progress-text {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 0.78rem;
+      color: var(--muted);
+      text-align: center;
+    }
+
+    /* Toast / alert */
+    .toast {
+      display: none;
+      align-items: center;
+      gap: 10px;
+      padding: 14px 18px;
+      border-radius: 10px;
+      margin-top: 16px;
+      font-size: 0.87rem;
+      font-weight: 500;
+      animation: fadeUp 0.3s ease;
+    }
+    .toast.show { display: flex; }
+    .toast.success {
+      background: rgba(0,255,157,0.08);
+      border: 1px solid rgba(0,255,157,0.25);
+      color: var(--accent2);
+    }
+    .toast.error {
+      background: rgba(255,95,95,0.08);
+      border: 1px solid rgba(255,95,95,0.25);
+      color: var(--warn);
+    }
+    .toast.info {
+      background: rgba(0,212,255,0.08);
+      border: 1px solid rgba(0,212,255,0.25);
+      color: var(--accent);
+    }
+
+    /* Info section */
+    .info-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 12px;
+      width: 100%;
+      max-width: 580px;
+      margin-top: 24px;
+      animation: fadeUp 0.8s ease 0.25s both;
+    }
+
+    .info-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+    }
+
+    .info-card-icon { font-size: 1.3rem; margin-bottom: 8px; }
+    .info-card-title { font-size: 0.82rem; font-weight: 700; margin-bottom: 4px; }
+    .info-card-desc { font-size: 0.75rem; color: var(--muted); line-height: 1.5; }
+
+    /* Footer */
+    footer {
+      margin-top: 48px;
+      text-align: center;
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 0.72rem;
+      color: var(--muted);
+      animation: fadeUp 0.8s ease 0.4s both;
+    }
+
+    /* Animations */
+    @keyframes fadeDown {
+      from { opacity: 0; transform: translateY(-20px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(20px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes shimmer {
+      from { opacity: 0; }
+      50%  { opacity: 1; }
+      to   { opacity: 0; }
+    }
+    @keyframes pulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(0,212,255,0.3); }
+      50%       { box-shadow: 0 0 0 8px rgba(0,212,255,0); }
+    }
+
+    /* Divider */
+    .divider {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 22px 0;
+    }
+
+    /* Responsive */
+    @media(max-width: 480px) {
+      .card { padding: 24px 18px; }
+      .options-row { flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+<div class="wrapper">
+
+  <header>
+    <div class="logo-row">
+      <svg class="lock-icon" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect x="8" y="20" width="32" height="24" rx="5" fill="none" stroke="url(#lg)" stroke-width="2.5"/>
+        <path d="M16 20V14a8 8 0 0 1 16 0v6" stroke="url(#lg)" stroke-width="2.5" stroke-linecap="round"/>
+        <circle cx="24" cy="32" r="3" fill="url(#lg)"/>
+        <line x1="24" y1="35" x2="24" y2="39" stroke="url(#lg)" stroke-width="2.5" stroke-linecap="round"/>
+        <defs>
+          <linearGradient id="lg" x1="8" y1="4" x2="40" y2="44" gradientUnits="userSpaceOnUse">
+            <stop stop-color="#00d4ff"/>
+            <stop offset="1" stop-color="#00ff9d"/>
+          </linearGradient>
+        </defs>
+      </svg>
+      <h1>AES Vault</h1>
+    </div>
+    <div class="tagline">// CLIENT-SIDE AES-256-GCM ENCRYPTION — YOUR FILES NEVER LEAVE YOUR DEVICE</div>
+    <div class="badges">
+      <span class="badge badge-blue">AES-256-GCM</span>
+      <span class="badge badge-green">Web Crypto API</span>
+      <span class="badge badge-muted">Zero Server Upload</span>
+      <span class="badge badge-muted">PBKDF2 Key Derivation</span>
+    </div>
+  </header>
+
+  <div class="card">
+
+    <!-- Mode tabs -->
+    <div class="mode-tabs">
+      <button class="tab-btn active" id="encTab" onclick="setMode('encrypt')">
+        🔒 Encrypt
+      </button>
+      <button class="tab-btn" id="decTab" onclick="setMode('decrypt')">
+        🔓 Decrypt
+      </button>
+    </div>
+
+    <!-- File drop zone -->
+    <div class="field-label">SELECT FILE</div>
+    <div class="drop-zone" id="dropZone">
+      <input type="file" id="fileInput" onchange="handleFile(this.files[0])"/>
+      <span class="drop-icon">📂</span>
+      <div class="drop-title">Drop file here or click to browse</div>
+      <div class="drop-sub">Any file type · No size restrictions · 100% local</div>
+    </div>
+
+    <div class="file-info" id="fileInfo">
+      <span class="file-info-icon" id="fileEmoji">📄</span>
+      <div class="file-info-text">
+        <div class="file-info-name" id="fileName">—</div>
+        <div class="file-info-size" id="fileSize">—</div>
+      </div>
+      <button class="clear-btn" onclick="clearFile()" title="Remove file">✕</button>
+    </div>
+
+    <!-- Password -->
+    <div class="field-label">PASSWORD / PASSPHRASE</div>
+    <div class="pass-wrap">
+      <input type="password" class="pass-input" id="passInput" placeholder="Enter a strong passphrase…"
+             oninput="updateStrength(this.value)"/>
+      <button class="pass-toggle" onclick="togglePass()" id="passToggle">👁</button>
+    </div>
+
+    <div class="strength-wrap">
+      <div class="strength-bar">
+        <div class="strength-fill" id="strengthFill"></div>
+      </div>
+      <div class="strength-label" id="strengthLabel">PASSPHRASE STRENGTH: —</div>
+    </div>
+
+    <!-- Iterations option (only shown on encrypt) -->
+    <div id="iterRow">
+      <div class="field-label">PBKDF2 ITERATIONS (KEY STRENGTH)</div>
+      <div class="options-row">
+        <div class="option-chip" onclick="selectIter(this, 100000)">
+          ⚡ Fast
+          <span class="option-chip-label">100 000 iter</span>
+        </div>
+        <div class="option-chip selected" onclick="selectIter(this, 250000)">
+          🛡 Balanced
+          <span class="option-chip-label">250 000 iter</span>
+        </div>
+        <div class="option-chip" onclick="selectIter(this, 600000)">
+          🔐 Max
+          <span class="option-chip-label">600 000 iter</span>
+        </div>
+      </div>
+    </div>
+
+    <hr class="divider"/>
+
+    <!-- Action button -->
+    <button class="action-btn" id="actionBtn" onclick="runAction()" disabled>
+      <span id="actionBtnIcon">🔒</span>
+      <span id="actionBtnText">Encrypt File</span>
+    </button>
+
+    <!-- Progress -->
+    <div class="progress-wrap" id="progressWrap">
+      <div class="progress-bar">
+        <div class="progress-fill" id="progressFill"></div>
+      </div>
+      <div class="progress-text" id="progressText">Deriving key…</div>
+    </div>
+
+    <!-- Toast -->
+    <div class="toast" id="toast">
+      <span id="toastIcon">✅</span>
+      <span id="toastMsg">Done!</span>
+    </div>
+
+  </div><!-- /card -->
+
+  <!-- Info cards -->
+  <div class="info-grid">
+    <div class="info-card">
+      <div class="info-card-icon">🔐</div>
+      <div class="info-card-title">AES-256-GCM</div>
+      <div class="info-card-desc">Military-grade authenticated encryption. Detects any tampering automatically.</div>
+    </div>
+    <div class="info-card">
+      <div class="info-card-icon">🧂</div>
+      <div class="info-card-title">Random Salt + IV</div>
+      <div class="info-card-desc">A fresh 16-byte salt and 12-byte IV are generated per file. Same file → different output every time.</div>
+    </div>
+    <div class="info-card">
+      <div class="info-card-icon">🏠</div>
+      <div class="info-card-title">100% Local</div>
+      <div class="info-card-desc">Everything runs in your browser. No data is ever sent to any server.</div>
+    </div>
+    <div class="info-card">
+      <div class="info-card-icon">🔑</div>
+      <div class="info-card-title">PBKDF2</div>
+      <div class="info-card-desc">Password stretched with PBKDF2-HMAC-SHA256 to resist brute-force attacks.</div>
+    </div>
+  </div>
+
+  <footer>
+    AES Vault · Powered by Web Crypto API · No trackers · No cookies · Open in any modern browser<br/>
+    <span style="color:#2a3d52;">Encrypted files have .vault extension · Keep your passphrase safe — it cannot be recovered</span>
+  </footer>
+
+</div><!-- /wrapper -->
+
+<script>
+// ─── State ────────────────────────────────────────────────────────────────────
+let currentFile = null;
+let currentMode = 'encrypt';
+let iterations  = 250000;
+
+// ─── Mode ─────────────────────────────────────────────────────────────────────
+function setMode(mode) {
+  currentMode = mode;
+  document.getElementById('encTab').classList.toggle('active', mode === 'encrypt');
+  document.getElementById('decTab').classList.toggle('active', mode === 'decrypt');
+  document.getElementById('iterRow').style.display = mode === 'encrypt' ? '' : 'none';
+  document.getElementById('actionBtnIcon').textContent = mode === 'encrypt' ? '🔒' : '🔓';
+  document.getElementById('actionBtnText').textContent = mode === 'encrypt' ? 'Encrypt File' : 'Decrypt File';
+  hideToast();
+  validateBtn();
+}
+
+// ─── File Handling ─────────────────────────────────────────────────────────────
+const dropZone = document.getElementById('dropZone');
+
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('drag-over');
+  if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+});
+
+function handleFile(file) {
+  if (!file) return;
+  currentFile = file;
+
+  document.getElementById('dropZone').style.display = 'none';
+  const info = document.getElementById('fileInfo');
+  info.classList.add('show');
+  document.getElementById('fileName').textContent = file.name;
+  document.getElementById('fileSize').textContent = formatBytes(file.size);
+  document.getElementById('fileEmoji').textContent = getEmoji(file.name);
+
+  hideToast();
+  validateBtn();
+}
+
+function clearFile() {
+  currentFile = null;
+  document.getElementById('fileInput').value = '';
+  document.getElementById('fileInfo').classList.remove('show');
+  document.getElementById('dropZone').style.display = '';
+  hideToast();
+  validateBtn();
+}
+
+function formatBytes(b) {
+  if (b < 1024) return b + ' B';
+  if (b < 1048576) return (b/1024).toFixed(1) + ' KB';
+  if (b < 1073741824) return (b/1048576).toFixed(2) + ' MB';
+  return (b/1073741824).toFixed(2) + ' GB';
+}
+
+function getEmoji(name) {
+  const ext = name.split('.').pop().toLowerCase();
+  const map = { pdf:'📕', jpg:'🖼', jpeg:'🖼', png:'🖼', gif:'🖼', mp4:'🎬', mp3:'🎵',
+    zip:'🗜', rar:'🗜', txt:'📝', doc:'📝', docx:'📝', xls:'📊', xlsx:'📊',
+    vault:'🔐', js:'💻', py:'🐍', html:'🌐', json:'📋' };
+  return map[ext] || '📄';
+}
+
+// ─── Password strength ─────────────────────────────────────────────────────────
+function updateStrength(pw) {
+  let score = 0;
+  if (pw.length >= 8)  score++;
+  if (pw.length >= 16) score++;
+  if (/[A-Z]/.test(pw)) score++;
+  if (/[0-9]/.test(pw)) score++;
+  if (/[^A-Za-z0-9]/.test(pw)) score++;
+
+  const fill  = document.getElementById('strengthFill');
+  const label = document.getElementById('strengthLabel');
+  const levels = [
+    { pct:'0%',   color:'transparent',      text:'—' },
+    { pct:'20%',  color:'#ff5f5f',          text:'WEAK' },
+    { pct:'45%',  color:'#ff9d00',          text:'FAIR' },
+    { pct:'65%',  color:'#ffe600',          text:'GOOD' },
+    { pct:'85%',  color:'#7ed9ff',          text:'STRONG' },
+    { pct:'100%', color:'var(--accent2)',   text:'EXCELLENT' },
+  ];
+  const l = pw ? levels[score] : levels[0];
+  fill.style.width = pw ? levels[Math.max(score,1)].pct : '0%';
+  fill.style.background = l.color;
+  label.textContent = 'PASSPHRASE STRENGTH: ' + (pw ? l.text : '—');
+  validateBtn();
+}
+
+function togglePass() {
+  const inp = document.getElementById('passInput');
+  inp.type = inp.type === 'password' ? 'text' : 'password';
+}
+
+// ─── Iterations ───────────────────────────────────────────────────────────────
+function selectIter(el, val) {
+  document.querySelectorAll('.option-chip').forEach(c => c.classList.remove('selected'));
+  el.classList.add('selected');
+  iterations = val;
+}
+
+// ─── Validate button ──────────────────────────────────────────────────────────
+function validateBtn() {
+  const ok = currentFile && document.getElementById('passInput').value.length >= 1;
+  document.getElementById('actionBtn').disabled = !ok;
+}
+
+document.getElementById('passInput').addEventListener('input', validateBtn);
+
+// ─── Crypto helpers ────────────────────────────────────────────────────────────
+async function deriveKey(password, salt, iters) {
+  const enc = new TextEncoder();
+  const keyMaterial = await crypto.subtle.importKey(
+    'raw', enc.encode(password), { name: 'PBKDF2' }, false, ['deriveKey']
+  );
+  return crypto.subtle.deriveKey(
+    { name: 'PBKDF2', salt, iterations: iters, hash: 'SHA-256' },
+    keyMaterial,
+    { name: 'AES-GCM', length: 256 },
+    false,
+    ['encrypt', 'decrypt']
+  );
+}
+
+// File format (encrypted):
+//  [4 bytes magic "VAULT"] [4 bytes iter LE uint32] [16 bytes salt] [12 bytes IV] [ciphertext+GCM tag]
+const MAGIC = new Uint8Array([0x56,0x4c,0x54,0x21]); // "VLT!"
+
+async function encryptFile(file, password, iters) {
+  const data = new Uint8Array(await file.arrayBuffer());
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const iv   = crypto.getRandomValues(new Uint8Array(12));
+
+  const key = await deriveKey(password, salt, iters);
+
+  const cipher = new Uint8Array(
+    await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, data)
+  );
+
+  // Pack: magic(4) + iters(4) + salt(16) + iv(12) + cipher
+  const iterBuf = new Uint8Array(4);
+  new DataView(iterBuf.buffer).setUint32(0, iters, true);
+
+  const out = new Uint8Array(4 + 4 + 16 + 12 + cipher.length);
+  let off = 0;
+  out.set(MAGIC, off);   off += 4;
+  out.set(iterBuf, off); off += 4;
+  out.set(salt, off);    off += 16;
+  out.set(iv, off);      off += 12;
+  out.set(cipher, off);
+
+  return out;
+}
+
+async function decryptFile(file, password) {
+  const buf = new Uint8Array(await file.arrayBuffer());
+
+  // Validate magic
+  for (let i = 0; i < 4; i++) {
+    if (buf[i] !== MAGIC[i]) throw new Error('Not a valid .vault file or file is corrupted.');
+  }
+
+  let off = 4;
+  const iters = new DataView(buf.buffer).getUint32(off, true); off += 4;
+  const salt  = buf.slice(off, off + 16); off += 16;
+  const iv    = buf.slice(off, off + 12); off += 12;
+  const cipher = buf.slice(off);
+
+  const key = await deriveKey(password, salt, iters);
+
+  try {
+    const plain = new Uint8Array(
+      await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, cipher)
+    );
+    return plain;
+  } catch {
+    throw new Error('Decryption failed. Wrong password or tampered file.');
+  }
+}
+
+// ─── Download helper ──────────────────────────────────────────────────────────
+function download(data, filename) {
+  const blob = new Blob([data]);
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+// ─── Main action ──────────────────────────────────────────────────────────────
+async function runAction() {
+  const password = document.getElementById('passInput').value;
+  if (!currentFile || !password) return;
+
+  const btn = document.getElementById('actionBtn');
+  btn.disabled = true;
+  hideToast();
+  showProgress(10, 'Deriving encryption key…');
+
+  try {
+    if (currentMode === 'encrypt') {
+      showProgress(20, 'Deriving key with PBKDF2…');
+      const encrypted = await encryptFile(currentFile, password, iterations);
+      showProgress(90, 'Packaging file…');
+      const outName = currentFile.name + '.vault';
+      download(encrypted, outName);
+      showProgress(100, 'Done!');
+      showToast('success', '✅', `Encrypted → ${outName} downloaded!`);
+    } else {
+      showProgress(20, 'Reading vault file…');
+      const decrypted = await decryptFile(currentFile, password);
+      showProgress(90, 'Verifying integrity…');
+
+      // Strip .vault extension if present
+      let outName = currentFile.name.replace(/\.vault$/i, '') || 'decrypted_file';
+      download(decrypted, outName);
+      showProgress(100, 'Done!');
+      showToast('success', '✅', `Decrypted → ${outName} downloaded!`);
+    }
+  } catch (err) {
+    showProgress(0, '');
+    document.getElementById('progressWrap').classList.remove('show');
+    showToast('error', '❌', err.message);
+  } finally {
+    btn.disabled = false;
+    validateBtn();
+  }
+}
+
+// ─── Progress ─────────────────────────────────────────────────────────────────
+function showProgress(pct, text) {
+  const wrap = document.getElementById('progressWrap');
+  wrap.classList.add('show');
+  document.getElementById('progressFill').style.width = pct + '%';
+  document.getElementById('progressText').textContent = text;
+}
+
+// ─── Toast ────────────────────────────────────────────────────────────────────
+function showToast(type, icon, msg) {
+  const t = document.getElementById('toast');
+  t.className = `toast show ${type}`;
+  document.getElementById('toastIcon').textContent = icon;
+  document.getElementById('toastMsg').textContent  = msg;
+}
+
+function hideToast() {
+  document.getElementById('toast').className = 'toast';
+  document.getElementById('progressWrap').classList.remove('show');
+}
+</script>
+</body>
+</html>
